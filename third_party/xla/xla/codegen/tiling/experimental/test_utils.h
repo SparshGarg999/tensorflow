@@ -18,28 +18,45 @@ limitations under the License.
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xla/codegen/tiling/experimental/tile.h"
 #include "xla/codegen/tiling/experimental/tiling_space.h"
 #include "xla/hlo/analysis/indexing_test_utils.h"
 #include "xla/shape.h"
-#include "xla/shape_util.h"
+#include "xla/util.h"
 
 namespace xla::gpu::experimental {
+namespace detail {
 
-MATCHER_P(MatchString, tile_string, "") {
-  const absl::string_view expected_string = tile_string;
-  const std::string actual_string = arg.ToString();
+template <typename T>
+std::string ToStringHelper(const T& arg) {
+  if constexpr (requires { arg.ToString(); }) {
+    return std::string(arg.ToString());
+  } else if constexpr (requires { arg->ToString(); }) {
+    return std::string(arg->ToString());
+  } else {
+    return std::string(ToString(arg));
+  }
+}
+
+}  // namespace detail
+
+MATCHER_P(MatchString, expected, "") {
+  const absl::string_view expected_string = expected;
+  const std::string actual_string = detail::ToStringHelper(arg);
   const auto [expected_index, actual_index] =
       FindApproximateMismatch(expected_string, actual_string);
   const bool matches = expected_index == expected_string.size() &&
                        actual_index == actual_string.size();
   if (!matches) {
     *result_listener << GetMismatchReport(expected_index, actual_index,
-                                          tile_string, arg.ToString());
+                                          expected_string, actual_string);
   }
   return matches;
 }
